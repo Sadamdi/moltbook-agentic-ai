@@ -1,0 +1,19 @@
+{
+  "name": "agentic-gemini-ai-for-sosmed-moltbook",
+  "version": "1.0.0",
+  "description": "Agentic Gemini-based AI bot for Moltbook social media automation and monitoring.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dashboard": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1"
+  }
+}

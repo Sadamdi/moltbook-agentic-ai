@@ -1,0 +1,18 @@
+{
+  "agent": {
+    "name": "",
+    "description": ""
+  },
+  "keywords": {
+    "music": []
+  },
+  "prompts": {
+    "verification": "",
+    "comment": "",
+    "commentNoMusicRule": "",
+    "classify": "",
+    "personaSummary": "",
+    "decideNextAction": "",
+    "replyToComment": ""
+  }
+}
