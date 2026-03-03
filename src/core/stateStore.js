@@ -1,12 +1,13 @@
 /**
- * General state storage for the Moltbook agent.
- * Used by agent loop, dashboard, and all LLM clients (Gemini, GLM, Kimi).
- * State is persisted in state.json next to this file.
+ * General state storage untuk Moltbook agent dengan path baru di src/core.
+ * Hanya bertanggung jawab ke file state.json; sinkronisasi Mongo di-handle oleh dataSync.
  */
 const fs = require('fs');
 const path = require('path');
+const { syncStateToMongoFromLocal } = require('./dataSync');
 
-const STATE_PATH = path.join(__dirname, 'state.json');
+// File state sekarang di data/state.json pada root project.
+const STATE_PATH = path.join(__dirname, '../../data/state.json');
 
 function getInitialState() {
 	return {
@@ -51,6 +52,12 @@ function saveState(partial) {
 	const current = loadState();
 	const next = { ...current, ...partial };
 	fs.writeFileSync(STATE_PATH, JSON.stringify(next, null, 2));
+	if (process.env.MONGODB_URI) {
+		// Fire-and-forget; jika gagal tidak memblokir loop utama.
+		syncStateToMongoFromLocal().catch((err) => {
+			console.error('[MongoSync] Gagal sync state ke Mongo:', err.message);
+		});
+	}
 	return next;
 }
 
@@ -60,3 +67,4 @@ module.exports = {
 	loadState,
 	saveState,
 };
+

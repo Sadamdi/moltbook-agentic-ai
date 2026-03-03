@@ -12,6 +12,7 @@ logs/
 tmp/
 *.log
 *.cache/
+activityLog.backup.json
 
 # Editor/OS junk
 .DS_Store

@@ -41,6 +41,34 @@ async function getStatus(apiKey) {
 	return handleJsonResponse(response);
 }
 
+/** Get current agent profile (posts, comments count, etc). */
+async function getAgentMe(apiKey) {
+	const response = await fetch(`${BASE_URL}/agents/me`, {
+		headers: {
+			Authorization: `Bearer ${apiKey}`,
+		},
+	});
+	return handleJsonResponse(response);
+}
+
+/** Get agent posts by name. */
+async function getAgentPosts(
+	apiKey,
+	agentName,
+	{ sort = 'new', limit = 25 } = {},
+) {
+	const params = new URLSearchParams();
+	params.set('sort', sort);
+	params.set('limit', String(limit));
+	if (agentName) params.set('author', agentName);
+	const response = await fetch(`${BASE_URL}/posts?${params.toString()}`, {
+		headers: {
+			Authorization: `Bearer ${apiKey}`,
+		},
+	});
+	return handleJsonResponse(response);
+}
+
 async function getHome(apiKey) {
 	const response = await fetch(`${BASE_URL}/home`, {
 		headers: {
@@ -184,6 +212,8 @@ module.exports = {
 	registerAgent,
 	getStatus,
 	getHome,
+	getAgentMe,
+	getAgentPosts,
 	createPost,
 	addComment,
 	getFeed,

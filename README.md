@@ -1,4 +1,4 @@
-# 🤖 Agentic Gemini AI for Sosmed Moltbook
+## 🤖 Agentic Gemini AI for Sosmed Moltbook
 
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=node.js&logoColor=white)
 ![Express](https://img.shields.io/badge/Express-5.x-000000?logo=express&logoColor=white)
@@ -26,6 +26,7 @@ Project ini adalah **Agentic Ai Powered by Gemini** yang:
 - [📁 Struktur Proyek](#-struktur-proyek)
 - [🧠 Cara Kerja Agent](#-cara-kerja-agent)
 - [💾 State, Backup, & Keamanan](#-state-backup--keamanan)
+- [💽 Integrasi MongoDB & Sinkronisasi](#-integrasi-mongodb--sinkronisasi)
 - [🧩 Kustomisasi Perilaku Bot](#-kustomisasi-perilaku-bot)
 - [🧪 Troubleshooting](#-troubleshooting)
 - [🤝 Contributing](#-contributing)
@@ -75,8 +76,8 @@ Project ini adalah **Agentic Ai Powered by Gemini** yang:
 | View layer       | TailwindCSS (via CDN)          | Styling dashboard                 |
 | AI               | Gemini / GLM / Kimi (pilih di .env) | Keputusan agent & analisis teks   |
 | Social backend   | Moltbook HTTP API              | Feed, post, comment, upvote, follow|
-| State            | `stateStore.js` → `state.json`| Satu sumber state untuk semua LLM |
-| Kustomisasi      | `personalize.json`            | Nama agent, prompt (git-ignored)   |
+| State            | `src/core/stateStore.js` → `data/state.json` | Satu sumber state untuk semua LLM |
+| Kustomisasi      | `data/personalize.json`      | Nama agent, prompt (git-ignored)   |
 
 ---
 
@@ -125,13 +126,12 @@ Moltbook API key **tidak** di `.env`: bot dapat lewat self-register dan disimpan
 
 ### Langkah Setup
 
-1. Copy env dan personalize:
+1. Copy env:
    ```bash
    cp .env.example .env
-   cp personalize.example.json personalize.json
    ```
 2. Edit `.env`: set `LLM_PROVIDERS` (atau `PRIMARY_LLM_PROVIDER`) dan isi API key untuk provider yang dipakai.
-3. (Opsional) Edit `personalize.json`: nama agent, deskripsi, keyword, dan prompt.
+3. (Opsional) Edit `data/personalize.json`: nama agent, deskripsi, keyword, dan prompt.
 4. `npm install` lalu `npm start`.
 
 ---
@@ -151,8 +151,7 @@ git clone https://github.com/Sadamdi/moltbook-agentic-ai.git
 cd moltbook-agentic-ai
 
 cp .env.example .env
-cp personalize.example.json personalize.json
-# Edit .env (API key LLM) dan personalize.json (nama agent & prompt)
+# Edit .env (API key LLM) dan data/personalize.json (nama agent & prompt)
 
 npm install
 ```
@@ -182,20 +181,29 @@ Ini cuma nyalain **dashboard** (Express server), tanpa ngejalanin agent loop uta
 
 ```bash
 .
-├── agentLoop.js            # Agentic loop (keputusan aksi, comment, follow, verifikasi)
-├── stateStore.js           # State umum: loadState/saveState (semua LLM & dashboard)
-├── llmClient.js            # Router LLM: Gemini / GLM / Kimi (sesuai .env)
-├── geminiClient.js         # Wrapper Gemini API + key rotation
-├── glmClient.js            # Wrapper GLM (Zhipu) API
-├── kimiClient.js           # Wrapper Kimi (Moonshot) API
-├── moltbookClient.js       # Moltbook API (post, comment, upvote, follow)
-├── server.js               # Dashboard Express (Tailwind UI)
-├── index.js                # Entrypoint: loop + dashboard
-├── state.json              # State lokal (dibuat otomatis; git-ignored)
-├── personalize.json        # Identitas & prompt agent (git-ignored; copy dari example)
-├── personalize.example.json # Template personalize (commit)
-├── .env                    # API keys LLM (git-ignored)
-├── .env.example            # Contoh konfigurasi environment
+├── src
+│   ├── index.js                 # Entrypoint: jalankan dashboard + agent loop
+│   ├── core
+│   │   ├── agentLoop.js         # Agentic loop (keputusan aksi, comment, follow, verifikasi)
+│   │   ├── stateStore.js        # State umum: loadState/saveState (semua LLM & dashboard)
+│   │   ├── activityLogger.js    # Logging aktifitas ke data/activityLog.json
+│   │   └── dataSync.js          # Sinkronisasi file JSON <-> MongoDB
+│   ├── llm
+│   │   ├── llmClient.js         # Router LLM: Gemini / GLM / Kimi (sesuai .env)
+│   │   ├── geminiClient.js      # Wrapper Gemini API + key rotation
+│   │   ├── glmClient.js         # Wrapper GLM (Zhipu) API
+│   │   └── kimiClient.js        # Wrapper Kimi (Moonshot) API
+│   ├── integrations
+│   │   ├── moltbookClient.js    # Moltbook API (post, comment, upvote, follow)
+│   │   └── mongoClient.js       # Helper koneksi MongoDB
+│   └── web
+│       └── server.js            # Dashboard Express (Tailwind UI)
+├── data
+│   ├── state.json               # State lokal (dibuat otomatis; git-ignored)
+│   ├── activityLog.json         # Log aktifitas agent (git-ignored)
+│   └── personalize.json         # Identitas & prompt agent (git-ignored)
+├── .env                         # API keys LLM (git-ignored)
+├── .env.example                 # Contoh konfigurasi environment
 ├── package.json
 ├── README.md
 └── LICENSE
@@ -205,39 +213,68 @@ Ini cuma nyalain **dashboard** (Express server), tanpa ngejalanin agent loop uta
 
 ## 🧠 Cara Kerja Agent
 
-1. **`index.js`**: Load env, start `server.js`, loop `runAgentLoop()` dengan delay dinamis.
-2. **`runAgentLoop`** (`agentLoop.js`):
-   - Baca state dari `stateStore.js` (umum untuk semua LLM).
+1. **`src/index.js`**: Load env, start `src/web/server.js`, loop `runAgentLoop()` dengan delay dinamis.
+2. **`runAgentLoop`** (`src/core/agentLoop.js`):
+   - Baca state dari `src/core/stateStore.js` (umum untuk semua LLM).
    - Panggil LLM (Gemini / GLM / Kimi sesuai `LLM_PROVIDERS`) untuk keputusan: `register`, `check_status`, `home`, `post`, `comment`, `follow`, `idle`.
    - Hindari post yang sudah dikomentari; pilih post dengan variasi.
-   - Eksekusi aksi via `moltbookClient.js` (post, comment, upvote, follow, verifikasi).
+   - Eksekusi aksi via `src/integrations/moltbookClient.js` (post, comment, upvote, follow, verifikasi).
    - Auto-reply ke komentar di post sendiri; periodik update `personaSummary`.
    - Simpan state lewat `stateStore.saveState()`.
-3. **`server.js`**: Baca state dari `stateStore`, (opsional) panggil Moltbook `/home`, render dashboard Tailwind.
+3. **`src/web/server.js`**: Baca state dari `stateStore`, (opsional) panggil Moltbook `/home`, render dashboard Tailwind.
 
 ---
 
 ## 💾 State, Backup, & Keamanan
 
-- **`stateStore.js`**: Satu tempat baca/tulis state (`loadState`, `saveState`) untuk agent loop, dashboard, dan semua LLM client (Gemini, GLM, Kimi). State disimpan di `state.json` (git-ignored).
-- **`state.json`**: Dibuat otomatis saat pertama jalan. Berisi `moltbookApiKey`, `recentActions`, `topicHistory`, `verificationHistory`, `followingNames`, dll. Jangan commit.
+- **`src/core/stateStore.js`**: Satu tempat baca/tulis state (`loadState`, `saveState`) untuk agent loop, dashboard, dan semua LLM client (Gemini, GLM, Kimi). State disimpan di `data/state.json` (git-ignored).
+- **`data/state.json`**: Dibuat otomatis saat pertama jalan. Berisi `moltbookApiKey`, `recentActions`, `topicHistory`, `verificationHistory`, `followingNames`, dll. Jangan commit.
 - **`.env`**: API keys untuk LLM yang dipakai (Gemini / GLM / Kimi). Jangan commit.
-- **`personalize.json`**: Nama agent, deskripsi, keyword, dan semua prompt. Git-ignored; copy dari `personalize.example.json` lalu edit.
+- **`data/personalize.json`**: Nama agent, deskripsi, keyword, dan semua prompt. Git-ignored; edit langsung file ini.
+- **`data/activityLog.json`**: Log aktivitas agent untuk dashboard owner (feed fetch, home, posts, comments, reply). Jangan commit.
 
-Reset memory: stop proses, hapus atau edit `state.json`; saat start lagi `stateStore` akan buat state awal bila file tidak ada.
+Reset memory: stop proses, hapus atau edit `data/state.json`; saat start lagi `stateStore` akan buat state awal bila file tidak ada.
 
 ---
 
+## 💽 Integrasi MongoDB & Sinkronisasi
+
+Proyek ini sebelumnya hanya menyimpan state di file lokal (`data/state.json`, `data/activityLog.json`, `data/personalize.json`). Sekarang sudah mendukung **MongoDB** sebagai backend sinkronisasi.
+
+### Konfigurasi MongoDB
+
+- Set di `.env`:
+  - `MONGODB_URI` – URI koneksi MongoDB, contoh: `mongodb://localhost:27017`
+  - `MONGODB_DB_NAME` (opsional) – nama database, default `moltbook_agent`
+- Jika `MONGODB_URI` **tidak** di-set:
+  - Bot tetap jalan dengan **file JSON lokal saja** (tanpa Mongo).
+- Jika `MONGODB_URI` di-set:
+  - Saat startup (`src/index.js`) bot akan:
+    - Sinkronisasi `data/state.json` dengan koleksi `states`
+    - Sinkronisasi `data/activityLog.json` dengan koleksi `activityLogs`
+    - Sinkronisasi `data/personalize.json` dengan koleksi `personalizeConfigs`
+
+### Aturan sinkronisasi
+
+- Jika Mongo ada isi dan JSON lokal kosong → data Mongo disalin ke file lokal.
+- Jika Mongo kosong dan JSON lokal ada isi → data lokal disalin ke Mongo.
+- Jika keduanya ada isi dan akun Moltbook sama:
+  - Dibandingkan timestamp (`lastMoltbookCheck` / `lastPostAt` / `lastCommentAt` + `mtime` file) dan jumlah data/log.
+  - Sumber yang **lebih baru / lebih banyak data** digunakan sebagai kebenaran.
+- Jika akun Moltbook berbeda:
+  - Dibuat dokumen baru di Mongo untuk akun tersebut (berdasarkan `agentName` di `state.json`), diisi dari lokal, dan dipakai ke depan.
+
+---
 
 ## 🧩 Kustomisasi Perilaku Bot
 
-**Utama: `personalize.json`** (copy dari `personalize.example.json` kalau belum ada)
+**Utama: `data/personalize.json`**
 
 - **`agent.name`**, **`agent.description`**: Nama dan deskripsi agent (untuk register & prompt).
 - **`keywords.music`**: Daftar keyword untuk preferensi topik (bisa kosong `[]` untuk netral).
 - **`prompts`**: Semua prompt LLM (verification, comment, classify, personaSummary, decideNextAction, replyToComment). Pakai placeholder `{{agentName}}`, `{{context}}`, dll.
 
-Setelah edit `personalize.json` atau `.env`, restart:
+Setelah edit `data/personalize.json` atau `.env`, restart:
 
 ```bash
 npm start
@@ -255,7 +292,6 @@ npm start
   - Cek `state.json` valid dan bisa di-parse.
 
 - **Error dari Moltbook atau Gemini di log**
-  - Log sekarang sudah full English, biasanya cukup jelas.
   - Bisa jadi karena:
     - API key invalid / expired,
     - Rate limiting,

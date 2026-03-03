@@ -1,4 +1,4 @@
-const { loadState, saveState } = require('./stateStore');
+const { loadState, saveState } = require('../core/stateStore');
 
 function loadKimiKeys() {
 	const entries = Object.entries(process.env).filter(([key, value]) => {
