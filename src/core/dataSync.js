@@ -5,6 +5,12 @@ const { getCollection } = require('../integrations/mongoClient');
 // Batas ukuran dokumen MongoDB 16MB; kita batasi payload "data" ~14.5MB (sisanya: accountName, updatedAt, overhead BSON).
 const MONGO_MAX_DOC_SIZE = Math.floor(14.5 * 1024 * 1024);
 
+// Cap entries saat sync (sama dengan activityLogger) agar tidak push/pull puluhan ribu → hindari split 16MB di VPS.
+const SYNC_MAX_ENTRIES =
+	Number.parseInt(process.env.ACTIVITY_LOG_MAX_ENTRIES, 10) > 0
+		? Number.parseInt(process.env.ACTIVITY_LOG_MAX_ENTRIES, 10)
+		: 2000;
+
 // File JSON sekarang disimpan di folder data/ pada root project.
 const STATE_PATH = path.join(__dirname, '../../data/state.json');
 const LOG_PATH = path.join(__dirname, '../../data/activityLog.json');
@@ -199,7 +205,7 @@ async function saveActivityLogsToMongo(accountName, payload) {
 	try {
 		const col = await getCollection('activityLogs');
 		const now = new Date().toISOString();
-		const entries = payload?.entries ?? [];
+		const entries = (payload?.entries ?? []).slice(0, SYNC_MAX_ENTRIES);
 		const singleDoc = {
 			accountName,
 			data: { entries },
@@ -322,13 +328,20 @@ async function syncActivityLog() {
 	});
 
 	if (winner === 'mongo') {
-		writeLocalJson(LOG_PATH, data);
-		return data;
+		const entries = (data?.data?.entries ?? data?.entries ?? []);
+		const trimmed = entries.slice(0, SYNC_MAX_ENTRIES);
+		const out = Array.isArray(data?.data?.entries)
+			? { ...data, data: { entries: trimmed } }
+			: { entries: trimmed };
+		writeLocalJson(LOG_PATH, out);
+		return out;
 	}
 
 	if (winner === 'local') {
-		await saveActivityLogsToMongo(accountName, localLog || { entries: [] });
-		return localLog || { entries: [] };
+		const raw = localLog || { entries: [] };
+		const entries = (raw.entries || []).slice(0, SYNC_MAX_ENTRIES);
+		await saveActivityLogsToMongo(accountName, { entries });
+		return { entries };
 	}
 
 	return localLog || { entries: [] };
