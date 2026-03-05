@@ -3,9 +3,11 @@ node_modules/
 # Environment configs
 .env
 
-# Hanya backup & env yang di-ignore. state.json dan personalize.json (dummy) boleh di-commit.
 state.local.backup.json
 personalize.backup.json
+data/state.json
+data/activityLog.json
+data/personalize.json
 
 # Logs & caches
 logs/
